@@ -9,66 +9,79 @@
 % GOAL
 %goal([on(a,b),on(b,c),on(c, table)]).
 
-% ACTIONS
-% action(name, preconditions, effects)
-action(move(X,Y), % Move X to Y
-    [block(X), block(Y), clear(X), clear(Y)], % Preconditions
-    [on(X,Y), not(clear(Y))]). % Effects
+% Define actions for the planner
+% action(Name, Preconditions, Effects)
 
-action(move(X,table), % Move X to table
-    [block(X), clear(X), not(on(X, table))], % Preconditions
-    [on(X,table)]). % Effects
+% Move block X onto block Y
+action(move(X, Y),  % X is moved onto Y
+    [block(X), block(Y), clear(X), clear(Y)],  % Preconditions: X and Y are blocks and both are clear
+    [on(X, Y), clear(X), not(clear(Y))]).      % Effects: X is now on Y, X remains clear, Y is no longer clear
 
+% Move block X onto the table
+action(move(X, table),  % X is moved onto the table
+    [block(X), clear(X), not(on(X, table))],  % Preconditions: X is a block, clear, and not already on the table
+    [on(X, table), clear(X)]).                % Effects: X is on the table and X is clear (it has no block on it)
+
+% Start action: sets the initial state of the world
 action(start, 
-    [], %No preconditions, only effects
-    [block(a), block(b), block(c),
-    clear(b), clear(c), on(a, table), on(b, table), on(c, a)]).
+    [],  % No preconditions, just defines the initial state
+    [block(a), block(b), block(c),  % a, b, c are blocks
+    clear(b), clear(c), on(a, table), on(b, table), on(c, a)]).  % Initial positions of blocks
 
+% Finish action: specifies the goal state of the world
 action(finish,
-    [on(a,b), on(b,c), on(c, table)], 
-    []). %No effects, only preconditions
+    [on(b, c)],  % ADD ON(C,A) AGAIN
+    []).  % No effects, finish is just a goal to satisfy the preconditions
 
 
-% Causal Link representation L
-%causal_link(A1,A2,Precondition) A1 - Precondition -> A2
-% Ordering Constraint
+% Causal link representation
+% causal_link(A1, A2, Precondition): A1 produces Precondition, which is needed by A2
+% Ordering constraint representation: constraint(Action1 < Action2)
+
+% Helper function to pair action preconditions with their corresponding actions
+add_pairs([], _, []).  % Base case: empty list of preconditions results in an empty list
+add_pairs([H|T], Name, [[H, Name]|List2]) :-  % Pair the first precondition with the action
+    add_pairs(T, Name, List2).  % Recursively process the rest of the preconditions
 
 
-
-add_pairs([], _, []).  % Base case: when the list is empty, the result is an empty list.
-add_pairs([H|T], Name, [[H, Name]|List2]) :-
-    add_pairs(T, Name, List2).  % Recursive case: pair the head of the list with Name and recurse on the tail.
-
-
-%POP Algorithm
-% pop([A,O,L], Agenta) where 
-% A is a list of actions
-% O is a list of ordering constraints
-% L is a list of causal links
-% Agenta is a list of pairs of <precondition, action>
-
-% If Agenta is empty, Plan is the solution
-pop(Solution,[]). 
-
-%               q      a
-pop([A, O, L],[[Q, Action] | Rest]) :-
-    action(Action, Preconditions, Effects), % a is an action
-    member(Q, Preconditions), % q is a precondition of a
-    action(ActionNew, _, EffectsNew), % A new Action
-    member(Q, EffectsNew), % New action's effect is precondition of Action a
-    member(ActionNew, A), !, %New action is in list A and cut afterwards cause mutex
-    pop([A,[constraint(ActionNew < Action)|O],[causal_link(ActionNew, Action, Q)|L]],
-        [Rest])
+% The main solve function to start the POP planning process
+solve(Solution, pop) :-
+    action(finish, Preconditions, _),          % Get the preconditions of the 'finish' action (goal state)
+    add_pairs(Preconditions, finish, Agenda),  % Create the initial agenda from finish preconditions
+    pop([[], [], []], Agenda, Solution).       % Start the POP algorithm with an empty plan, ordering, and causal links
 
 
-% ActionNew is not in A
-pop([A, O, L],[[Q, Action] | Rest]) :-
-    action(Action, Preconditions, Effects), % a is an action
-    member(Q, Preconditions), % q is a precondition of a
-    action(ActionNew, PrecondNew, EffectsNew), % A new Action
-    member(Q, EffectsNew), % New action's effect is precondition of Action a
-     % Use add_pairs to generate the new agenda
-    add_pairs(PrecondNew, ActionNew, NewAgenda),
-    pop([[ActionNew|A],
-        [constraint(ActionNew < Action)|O],[causal_link(ActionNew, Action, Q)|L]],
-        [NewAgenda|Rest]). % Add ActionNew's preconditions to the Agenda
+% Partial Order Planning (POP) Algorithm
+% pop([A, O, L], Agenda, Solution)
+% A: list of actions, O: list of ordering constraints, L: list of causal links
+% Agenda: list of pairs <precondition, action> that still need to be achieved
+% Solution: the final plan when the agenda is empty
+
+% Base case: when the agenda is empty, the solution is the current plan
+pop([A, O, L], [], [A, O, L]).
+
+% Case where ActionNew is not yet in A, we add it along with its preconditions to the agenda
+pop([A, O, L], [[Q, Action] | Agenda], Solution) :-
+    action(Action, Preconditions, Effects),   % Current action and its effects
+    member(Q, Preconditions),                 % Q is a precondition of the current action
+    action(ActionNew, PrecondNew, EffectsNew), % New action that produces Q
+    member(Q, EffectsNew),                    % Check if ActionNew produces the effect Q
+    add_pairs(PrecondNew, ActionNew, NewPairs), % Add the preconditions of ActionNew to the agenda
+    append(NewPairs, Agenda, UpdatedAgenda),  % Combine the new preconditions with the existing agenda
+    pop([[ActionNew | A],                      % Add ActionNew to the list of actions
+         [constraint(ActionNew < Action) | O], % Add the ordering constraint
+         [causal_link(ActionNew, Action, Q) | L]], % Add the causal link
+        UpdatedAgenda, Solution).  % Continue solving with the updated agenda
+
+
+% Case where ActionNew is already in A, and we just need to add the causal link and ordering constraint
+pop([A, O, L], [[Q, Action] | Agenda], Solution) :-
+    action(Action, Preconditions, Effects),   % Current action and its effects
+    member(Q, Preconditions),                 % Q is a precondition of the current action
+    action(ActionNew, _, EffectsNew),         % ActionNew is another action
+    member(Q, EffectsNew),                    % ActionNew produces the effect that satisfies precondition Q
+    member(ActionNew, A), !,                  % If ActionNew is already in A, we avoid backtracking (cut operator)
+    pop([A, [constraint(ActionNew < Action) | O],  % Add ordering constraint: ActionNew before Action
+             [causal_link(ActionNew, Action, Q) | L]],  % Add causal link: ActionNew -> Action (produces Q)
+        Agenda, Solution).  % Continue solving with the updated agenda
+
