@@ -4,7 +4,6 @@
 %          a  b
 % table	=  =  =  =
 
-% Write my alldifferent(List)
 block(a).
 block(b).
 block(c).
@@ -13,21 +12,15 @@ table(t).
 % Start and goal not actions --> constraints actions > start, actions < finish
 % Put them as pseudo-actions in plans, not search for them
 
-alldifferent([_]).  % A list with one element is trivially all different
+alldifferent([_]). 
 alldifferent([H | Rest]) :-
-    \+ member(H, Rest),   % H should not be a member of Rest
-    alldifferent(Rest).  % Recursively check the rest of the list
+    \+ member(H, Rest),  
+    alldifferent(Rest). 
 
 % Start action: sets the initial state of the world
 action(start, 
     [],  % No preconditions, just defines the initial state
     [clear(b), clear(c), on(a, t), on(b, t), on(c, a)]).  % Initial positions of blocks
-
-action(movefromT(X, Y, t),  % X is moved onto Y from Z
-    [clear(X), clear(Y), on(X, t)],  % Preconditions: X and Y are blocks, and both are clear
-    [on(X, Y), not(clear(Y)), not(on(X, t))]) :- 
-    block(X), block(Y), 
-    X \= Y, X \= t, Y \= t.
 
 % Move block X onto block Y
 action(move(X, Y, Z),  % X is moved onto Y from Z
@@ -35,6 +28,12 @@ action(move(X, Y, Z),  % X is moved onto Y from Z
     [on(X, Y), not(clear(Y)), clear(Z), not(on(X, Z))]) :- 
     block(X), block(Y), block(Z),
     alldifferent([X, Y, Z]).
+
+action(movefromT(X, Y, t),  % X is moved onto Y from Z
+    [clear(X), clear(Y), on(X, t)],  % Preconditions: X and Y are blocks, and both are clear
+    [on(X, Y), not(clear(Y)), not(on(X, t))]) :- 
+    block(X), block(Y), 
+    alldifferent([X, Y, t]).
 
 % Move block X onto the table from block Z.
 action(moveT(X, t, Z),  % X is moved onto the table from Z
@@ -57,7 +56,7 @@ action(finish,
 % na valw dhlwsh constraint
 
 % The main solve function to start the POP planning process
-solve(Solution) :-
+plan(Solution) :-
     action(finish, Preconditions, _),          % Get the preconditions of the 'finish' action (goal state)
     add_pairs(Preconditions, finish, Agenda),  % Create the initial agenda from finish preconditions
     pop([[start, finish], [constraint(start < finish)], []], Agenda, Solution).       % Start the POP algorithm with an empty plan, ordering, and causal links
