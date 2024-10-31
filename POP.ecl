@@ -24,7 +24,6 @@ action(move(X, Y, Z), ID,
     block(X), block(Y), block(Z),
     alldifferent([X, Y, Z]).
 
-
 action(move(X, Y, t), ID, 
     [clear(X), clear(Y), on(X, t)],  
     [on(X, Y), not(clear(Y)), not(on(X, t))]) :- 
@@ -71,7 +70,7 @@ pop([A, O, L], [[Q, Action]|Agenda], ID, Level, Solution) :-
     member(Q, Effects),
     \+ member([Action, IDold] #< [ActionNew, IDnew], O),
 
-    %write('New Level: '), write(Level), nl,
+    write('New Q: '), write(Q), write(' -> '), write(ActionNew), nl,
     NewLevel is Level - 1,
     % Adding new ordering constraint while keeping O as a set
     union([[ActionNew, IDnew] #< [Action, IDold]], O, NewO),
@@ -79,18 +78,16 @@ pop([A, O, L], [[Q, Action]|Agenda], ID, Level, Solution) :-
     % Adding new causal link while keeping L as a set
     union([causal_link([ActionNew, IDnew], [Action, IDold], Q)], L, NewL),
 
-
     % Call with new stuff
-    pop([A,                      
-         NewO, 
-         NewL], 
-        Agenda, ID, NewLevel, Solution).  
+    pop([A, NewO, NewL], Agenda, ID, NewLevel, Solution).  
 
 % New Action NOT in A
 pop([A, O, L], [[Q, Action]|Agenda], ID, Level, Solution) :-
     % Select new Action
     action(ActionNew, ID, Preconditions, Effects),
     member(Q, Effects),
+
+    write('New Q: '), write(Q), write(' -> '), write(ActionNew), nl,
 
     % Append new action preconditions to Agenda
     add_pairs(Preconditions, ActionNew, NewPairs), 
@@ -102,14 +99,12 @@ pop([A, O, L], [[Q, Action]|Agenda], ID, Level, Solution) :-
     member([Action, IDold], A),
 
     % Adding new ordering constraint while keeping O as a set
-    union([[ActionNew, IDnew] #< [Action, IDold]], O, NewO),
+    union([[ActionNew, ID] #< [Action, IDold]], O, NewO),
 
 % Adding new causal link while keeping L as a set
     union([causal_link([ActionNew, IDnew], [Action, IDold], Q)], L, NewL),
 
-
     % Call with new stuff
-    pop([[[ActionNew, ID] | A],                      
-         NewO, 
-         NewL], 
-        NewAgenda, IDnew, NewLevel, Solution).
+    pop([[[ActionNew, ID] | A], NewO, NewL], NewAgenda, IDnew, NewLevel, Solution).
+
+
