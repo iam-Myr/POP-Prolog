@@ -21,7 +21,7 @@ action(start, 0,
 action(move(X, Y, Z), ID,  
     [clear(X), clear(Y), on(X, Z)],  
     [on(X, Y), not(clear(Y)), clear(Z), not(on(X, Z))]) :- 
-    block(X), block(Y), 
+    block(X), block(Y), block(Z),
     alldifferent([X, Y, Z]).
 
 
@@ -66,18 +66,24 @@ pop(_, _, _, -1, _) :-
 pop([A, O, L], [[Q, Action]|Agenda], ID, Level, Solution) :-
     % Select new Action
     member([ActionNew, IDnew], A),
+    member([Action, IDold], A),
     action(ActionNew, _, _, Effects),
     member(Q, Effects),
-    \+ member(Action #< ActionNew, O),
+    \+ member([Action, IDold] #< [ActionNew, IDnew], O),
 
     %write('New Level: '), write(Level), nl,
     NewLevel is Level - 1,
-    member([Action, IDold], A),
+    % Adding new ordering constraint while keeping O as a set
+    union([[ActionNew, IDnew] #< [Action, IDold]], O, NewO),
+
+    % Adding new causal link while keeping L as a set
+    union([causal_link([ActionNew, IDnew], [Action, IDold], Q)], L, NewL),
+
 
     % Call with new stuff
     pop([A,                      
-         [[ActionNew, IDnew] #< [Action, IDold] | O], 
-         [causal_link(ActionNew, Action, Q) | L]], 
+         NewO, 
+         NewL], 
         Agenda, ID, NewLevel, Solution).  
 
 % New Action NOT in A
@@ -95,8 +101,15 @@ pop([A, O, L], [[Q, Action]|Agenda], ID, Level, Solution) :-
 
     member([Action, IDold], A),
 
+    % Adding new ordering constraint while keeping O as a set
+    union([[ActionNew, IDnew] #< [Action, IDold]], O, NewO),
+
+% Adding new causal link while keeping L as a set
+    union([causal_link([ActionNew, IDnew], [Action, IDold], Q)], L, NewL),
+
+
     % Call with new stuff
     pop([[[ActionNew, ID] | A],                      
-         [[ActionNew, ID] #< [Action, IDold] | O], 
-         [causal_link(ActionNew, Action, Q) | L]], 
+         NewO, 
+         NewL], 
         NewAgenda, IDnew, NewLevel, Solution).
