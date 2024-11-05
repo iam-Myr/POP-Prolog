@@ -53,13 +53,18 @@ add_pairs([H|T], Name, [[H, Name]|List2]) :-
 % Selects Q (can change how the selection is made later)
 %select_Q([[Q, Action] | _], Q, Action).
 
-not_consistent(O):-
-    member([A1, ID1] #< [A2, ID2], O),
-    member([A2, ID2] #< [A1, ID1], O),
-    write('O not consistent'), !.
+threat(_, []).
 
-not_consistent(O):-
-    write('O consistent').
+% New Action is a Threat
+threat(A, [causal_link(A1, A2, Q) | L]) :-
+    action(A, _, _, Effects),
+    member(not(Q), Effects),  % OR condition for member 
+    write('THREAT: '), write(A), write(' '), write(causal_link(A1, A2, Q)), nl,
+    threat(A, L).
+
+threat(A, [causal_link(A1, A2, Q) | L]) :-
+    threat(A, L).
+
 
 % Base case: when the agenda is empty, the solution is the current plan
 pop([A, O, L], [], _, _, [A, O, L]).
@@ -85,6 +90,8 @@ pop([A, O, L], [[Q, Action]|Agenda], ID, Level, Solution) :-
     % Adding new causal link while keeping L as a set
     union([causal_link([ActionNew, IDnew], [Action, IDold], Q)], L, NewL),
 
+    %threat(ActionNew, L),
+
     % Call with new stuff
     pop([A, NewO, NewL], Agenda, ID, NewLevel, Solution).  
 
@@ -105,10 +112,11 @@ pop([A, O, L], [[Q, Action]|Agenda], ID, Level, Solution) :-
 
     member([Action, IDold], A),
 
+    threat(ActionNew, L),
+
     % Call with new stuff
     pop([[[ActionNew, ID] | A], 
     [[ActionNew, ID] #< [Action, IDold] | O], % SHOULD ADD start < ActionNew < finish
     [causal_link([ActionNew, IDnew], [Action, IDold], Q) | L]], 
     NewAgenda, IDnew, NewLevel, Solution).
  
-
